@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright (c) 2026. Volodymyr Hryvinskyi. All rights reserved.
+ * Author: Volodymyr Hryvinskyi <volodymyr@hryvinskyi.com>
+ * GitHub: https://github.com/hryvinskyi
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <preference for="Hryvinskyi\EncryptionKeyManager\Api\DeploymentKeysInterface"
+                type="Hryvinskyi\EncryptionKeyManager\Model\DeploymentKeys"/>
+    <preference for="Hryvinskyi\EncryptionKeyManager\Api\PinnedHashKeyInterface"
+                type="Hryvinskyi\EncryptionKeyManager\Model\PinnedHashKey"/>
+    <preference for="Hryvinskyi\EncryptionKeyManager\Api\HashKeyPinnerInterface"
+                type="Hryvinskyi\EncryptionKeyManager\Model\HashKeyPinner"/>
+    <preference for="Hryvinskyi\EncryptionKeyManager\Api\DecryptLogSettingsInterface"
+                type="Hryvinskyi\EncryptionKeyManager\Model\DecryptLogSettings"/>
+
+    <!-- Resized product images keep their cache directory through a key rotation. -->
+    <type name="Magento\Catalog\Model\View\Asset\Image">
+        <arguments>
+            <argument name="encryptor" xsi:type="object">Hryvinskyi\EncryptionKeyManager\Model\PinnedKeyEncryptor</argument>
+        </arguments>
+    </type>
+
+    <!-- JSON web tokens are signed and verified with the active key only. -->
+    <type name="Magento\JwtUserToken\Model\SecretBasedJwksFactory">
+        <arguments>
+            <argument name="deploymentConfig" xsi:type="object">Hryvinskyi\EncryptionKeyManager\Model\LatestKeyDeploymentConfig</argument>
+        </arguments>
+    </type>
+
+    <type name="Magento\Framework\Encryption\Encryptor">
+        <plugin name="hryvinskyi_encryption_key_manager_log_old_key_decrypts"
+                type="Hryvinskyi\EncryptionKeyManager\Plugin\LogOldKeyDecrypts"/>
+    </type>
+    <virtualType name="HryvinskyiEncryptionKeyManagerDecryptLogHandler" type="Magento\Framework\Logger\Handler\Base">
+        <arguments>
+            <argument name="fileName" xsi:type="string">/var/log/encryption_key_decrypts.log</argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="HryvinskyiEncryptionKeyManagerDecryptLogger" type="Magento\Framework\Logger\Monolog">
+        <arguments>
+            <argument name="name" xsi:type="string">encryption_key_decrypts</argument>
+            <argument name="handlers" xsi:type="array">
+                <item name="file" xsi:type="object">HryvinskyiEncryptionKeyManagerDecryptLogHandler</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <type name="Hryvinskyi\EncryptionKeyManager\Plugin\LogOldKeyDecrypts">
+        <arguments>
+            <argument name="logger" xsi:type="object">HryvinskyiEncryptionKeyManagerDecryptLogger</argument>
+        </arguments>
+    </type>
+
+    <type name="Hryvinskyi\EncryptionKeyManager\Console\Command\PinHashKeyCommand">
+        <arguments>
+            <argument name="pinner" xsi:type="object">Hryvinskyi\EncryptionKeyManager\Api\HashKeyPinnerInterface\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="hryvinskyi_encryption_key_manager_pin_hash_key" xsi:type="object">Hryvinskyi\EncryptionKeyManager\Console\Command\PinHashKeyCommand</item>
+            </argument>
+        </arguments>
+    </type>
+</config>
